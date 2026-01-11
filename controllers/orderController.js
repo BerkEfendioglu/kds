@@ -1,9 +1,11 @@
-const db = require('../config/db');
+const Order = require('../models/Order');
+const Vehicle = require('../models/Vehicle');
+const Stock = require('../models/Stock');
 
 const getOrders = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM siparisler ORDER BY siparis_tarihi DESC');
-    res.json(rows);
+    const orders = await Order.findAll();
+    res.json(orders);
   } catch (err) {
     res.status(500).json({ error: 'Bir hata oluştu' });
   }
@@ -12,11 +14,11 @@ const getOrders = async (req, res) => {
 const getOrderById = async (req, res) => {
     try {
         const { id } = req.params;
-        const [rows] = await db.query('SELECT * FROM siparisler WHERE id = ?', [id]);
-        if (rows.length === 0) {
+        const order = await Order.findById(id);
+        if (!order) {
             return res.status(404).json({ error: 'Sipariş bulunamadı' });
         }
-        res.json(rows[0]);
+        res.json(order);
     } catch (err) {
         res.status(500).json({ error: 'Bir hata oluştu' });
     }
@@ -26,17 +28,22 @@ const createOrder = async (req, res) => {
     try {
         const { urun_id, arac_id, miktar_kg } = req.body;
 
-        // Business Rule: Check for stock
-        const [stock] = await db.query('SELECT SUM(miktar_kg) as total_stock FROM stok WHERE urun_id = ?', [urun_id]);
-        if (stock[0].total_stock < miktar_kg) {
-            return res.status(400).json({ error: 'Stok yetersiz' });
+        // İş Kuralı 1: Stok kontrolü - Stok yetersizse sipariş verilemez
+        const totalStock = await Order.getTotalStock(urun_id);
+        if (totalStock < miktar_kg) {
+            return res.status(400).json({ error: 'Stok yetersiz. Mevcut stok: ' + totalStock + ' kg' });
         }
 
-        const [result] = await db.query('INSERT INTO siparisler (urun_id, arac_id, miktar_kg, siparis_tarihi) VALUES (?, ?, ?, ?)', [urun_id, arac_id, miktar_kg, new Date()]);
+        // İş Kuralı 2: Aktif olmayan araçlara sipariş atanamaz
+        const isVehicleActive = await Vehicle.isActive(arac_id);
+        if (!isVehicleActive) {
+            return res.status(400).json({ error: 'Aktif olmayan araçlara sipariş atanamaz' });
+        }
+
+        await Order.create({ urun_id, arac_id, miktar_kg });
         
-        // Decrease stock
-        // This is a simple implementation. A more robust solution would involve transactions.
-        await db.query('UPDATE stok SET miktar_kg = miktar_kg - ? WHERE urun_id = ? AND depo_id = (SELECT depo_id FROM (SELECT * FROM stok) as s WHERE urun_id = ? AND miktar_kg >= ? LIMIT 1)', [miktar_kg, urun_id, urun_id, miktar_kg]);
+        // Stok azaltma
+        await Stock.decreaseStock(urun_id, miktar_kg);
 
         res.status(201).json({ message: 'Sipariş başarıyla oluşturuldu' });
     } catch (err) {
@@ -49,7 +56,16 @@ const updateOrder = async (req, res) => {
     try {
         const { id } = req.params;
         const { urun_id, arac_id, miktar_kg } = req.body;
-        const [result] = await db.query('UPDATE siparisler SET urun_id = ?, arac_id = ?, miktar_kg = ? WHERE id = ?', [urun_id, arac_id, miktar_kg, id]);
+
+        // İş Kuralı 2: Aktif olmayan araçlara sipariş atanamaz
+        if (arac_id) {
+            const isVehicleActive = await Vehicle.isActive(arac_id);
+            if (!isVehicleActive) {
+                return res.status(400).json({ error: 'Aktif olmayan araçlara sipariş atanamaz' });
+            }
+        }
+
+        const result = await Order.update(id, { urun_id, arac_id, miktar_kg });
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Sipariş bulunamadı' });
         }
@@ -62,7 +78,7 @@ const updateOrder = async (req, res) => {
 const deleteOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const [result] = await db.query('DELETE FROM siparisler WHERE id = ?', [id]);
+        const result = await Order.delete(id);
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Sipariş bulunamadı' });
         }

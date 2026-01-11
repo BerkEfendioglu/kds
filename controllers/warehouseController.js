@@ -1,9 +1,9 @@
-const db = require('../config/db');
+const Warehouse = require('../models/Warehouse');
 
 const getWarehouses = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM depolar');
-        res.json(rows);
+        const warehouses = await Warehouse.findAll();
+        res.json(warehouses);
     } catch (err) {
         res.status(500).json({ error: 'Bir hata oluştu' });
     }
@@ -12,11 +12,11 @@ const getWarehouses = async (req, res) => {
 const getWarehouseById = async (req, res) => {
     try {
         const { id } = req.params;
-        const [rows] = await db.query('SELECT * FROM depolar WHERE id = ?', [id]);
-        if (rows.length === 0) {
+        const warehouse = await Warehouse.findById(id);
+        if (!warehouse) {
             return res.status(404).json({ error: 'Depo bulunamadı' });
         }
-        res.json(rows[0]);
+        res.json(warehouse);
     } catch (err) {
         res.status(500).json({ error: 'Bir hata oluştu' });
     }
@@ -28,7 +28,7 @@ const createWarehouse = async (req, res) => {
         if (!ad) {
             return res.status(400).json({ error: 'Depo adı gereklidir' });
         }
-        await db.query('INSERT INTO depolar (ad, lokasyon) VALUES (?, ?)', [ad, lokasyon]);
+        await Warehouse.create({ ad, lokasyon });
         res.status(201).json({ message: 'Depo başarıyla oluşturuldu' });
     } catch (err) {
         res.status(500).json({ error: 'Bir hata oluştu' });
@@ -39,7 +39,7 @@ const updateWarehouse = async (req, res) => {
     try {
         const { id } = req.params;
         const { ad, lokasyon } = req.body;
-        const [result] = await db.query('UPDATE depolar SET ad = ?, lokasyon = ? WHERE id = ?', [ad, lokasyon, id]);
+        const result = await Warehouse.update(id, { ad, lokasyon });
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Depo bulunamadı' });
         }
@@ -52,7 +52,7 @@ const updateWarehouse = async (req, res) => {
 const deleteWarehouse = async (req, res) => {
     try {
         const { id } = req.params;
-        const [result] = await db.query('DELETE FROM depolar WHERE id = ?', [id]);
+        const result = await Warehouse.delete(id);
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Depo bulunamadı' });
         }

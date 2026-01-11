@@ -22,7 +22,13 @@ const {
     updateOrder,
     deleteOrder
 } = require('../controllers/orderController');
-const { getWarehouses } = require('../controllers/warehouseController');
+const { 
+    getWarehouses,
+    getWarehouseById,
+    createWarehouse,
+    updateWarehouse,
+    deleteWarehouse
+} = require('../controllers/warehouseController');
 const { getSalesHistory } = require('../controllers/salesHistoryController');
 
 router.get('/vehicles', getVehicles);
@@ -44,6 +50,11 @@ router.put('/orders/:id', updateOrder);
 router.delete('/orders/:id', deleteOrder);
 
 router.get('/warehouses', getWarehouses);
+router.get('/warehouses/:id', getWarehouseById);
+router.post('/warehouses', createWarehouse);
+router.put('/warehouses/:id', updateWarehouse);
+router.delete('/warehouses/:id', deleteWarehouse);
+
 router.get('/sales-history', getSalesHistory);
 
 module.exports = router;

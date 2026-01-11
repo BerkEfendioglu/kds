@@ -30,6 +30,14 @@ async function setupDatabase() {
     try {
         console.log("Veritabanı kurulumu başlıyor...");
 
+        // .env dosyası kontrolü
+        if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) {
+            console.log("⚠️  UYARI: .env dosyası bulunamadı veya eksik bilgiler var.");
+            console.log("   Lütfen env.example dosyasını .env olarak kopyalayın ve düzenleyin.");
+            console.log("   Veritabanı kurulumu atlanıyor.");
+            return;
+        }
+
         connection = await mysql.createConnection({
             host: process.env.DB_HOST,
             user: process.env.DB_USER,
@@ -234,11 +242,17 @@ async function setupDatabase() {
             });
 
     } catch (error) {
-        console.error("Veritabanı kurulumu sırasında bir hata oluştu:", error);
-        if (connection) {
-            await connection.end();
+        if (error.code === 'ECONNREFUSED') {
+            console.error("⚠️  UYARI: MySQL sunucusuna bağlanılamadı.");
+            console.error("   Lütfen MySQL'in çalıştığından ve .env dosyasındaki bağlantı bilgilerinin doğru olduğundan emin olun.");
+            console.error("   Veritabanı kurulumu atlanıyor. Daha sonra 'node setup-database.js' komutu ile tekrar deneyebilirsiniz.");
+        } else {
+            console.error("Veritabanı kurulumu sırasında bir hata oluştu:", error);
+            if (connection) {
+                await connection.end();
+            }
         }
-        process.exit(1);
+        // postinstall scriptinde hata olsa bile npm install'ın devam etmesi için exit(1) kaldırıldı
     }
 }
 
